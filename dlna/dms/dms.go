@@ -119,6 +119,20 @@ func (me *Server) httpPort() int {
 func (me *Server) serveHTTP() error {
 	srv := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if len(me.AllowedIps) > 0 {
+				clientIp := r.RemoteAddr
+				found := false
+				for _, allowedIp := range me.AllowedIps {
+					if strings.Contains(clientIp, allowedIp) {
+						found = true
+					}
+				}
+				if !found {
+					log.Printf("not allowed client %s, %+v", clientIp, me.AllowedIps)
+					http.Error(w, "forbidden", http.StatusForbidden)
+					return
+				}
+			}
 			if me.LogHeaders {
 				fmt.Fprintf(os.Stderr, "%s %s\r\n", r.Method, r.RequestURI)
 				r.Header.Write(os.Stderr)
@@ -526,20 +540,6 @@ func (me *Server) soapActionResponse(sa upnp.SoapAction, actionRequestXML []byte
 
 // Handle a service control HTTP request.
 func (me *Server) serviceControlHandler(w http.ResponseWriter, r *http.Request) {
-	if len(me.AllowedIps) > 0 {
-		clientIp := r.RemoteAddr
-		found := false
-		for _, allowedIp := range me.AllowedIps {
-			if strings.Contains(clientIp, allowedIp) {
-				found = true
-			}
-		}
-		if !found {
-			log.Printf("not allowed client %s, %+v", clientIp, me.AllowedIps)
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-	}
 	soapActionString := r.Header.Get("SOAPACTION")
 	soapAction, err := upnp.ParseActionHTTPHeader(soapActionString)
 	if err != nil {
@@ -767,6 +767,7 @@ func (server *Server) initMux(mux *http.ServeMux) {
 			http.ServeContent(w, r, "", time.Time{}, di.ReadSeeker)
 		})
 	}
+	mux.Handle("/file/", http.StripPrefix("/file/", http.FileServer(http.Dir(server.RootObjectPath))))
 }
 
 func (s *Server) initServices() (err error) {
