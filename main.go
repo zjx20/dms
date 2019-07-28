@@ -136,6 +136,12 @@ func main() {
 		config.load(*configFilePath)
 	}
 
+	absPath, err := filepath.Abs(config.Path)
+	if err != nil {
+		log.Panic(err)
+	}
+	config.Path = absPath
+
 	cache := &fFprobeCache{
 		c: rrcache.New(64 << 20),
 	}
@@ -211,7 +217,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 	<-sigs
-	err := dmsServer.Close()
+	err = dmsServer.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
